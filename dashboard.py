@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -17,14 +16,10 @@ except ImportError:
     get_retraining_status = lambda: {"error": "Retraining module not available"}
     run_retraining_pipeline = lambda force=False: {"error": "Retraining module not available"}
 
-# Import the new data fetcher
 try:
     from data_fetcher import fetch_latest_data
 except ImportError:
-    # Fallback if the data fetcher script is not available
-    def fetch_latest_data():
-        st.error("❌ Data fetcher script `data_fetcher.py` not found!")
-        return False, 0
+    fetch_latest_data = lambda: (False, 0)
 
 @st.cache_data
 def load_data():
@@ -900,96 +895,465 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.sidebar.info(f"No filters applied. Showing all {len(births)} records.")
-
-
-    # Main dashboard content
-    st.markdown("---")
+        st.sidebar.info(f"📈 Showing all {len(births)} records")
     
-    # Create tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📈 Main Dashboard", "🔍 Detailed Analysis", "⚙️ Model & Data"])
+    # Key metrics row
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if len(births_for_analysis) > 0:
+            latest_births = births_for_analysis['Births'].iloc[-1]
+            prev_births = births_for_analysis['Births'].iloc[-2] if len(births_for_analysis) > 1 else latest_births
+            st.metric(
+                label="Latest Monthly Births",
+                value=f"{latest_births:,}",
+                delta=f"{latest_births - prev_births:+.0f}"
+            )
+        else:
+            st.metric(label="Latest Monthly Births", value="N/A", delta="No data in filter")
+    
+    with col2:
+        if len(births_for_analysis) > 0:
+            avg_births = births_for_analysis['Births'].mean()
+            latest_births = births_for_analysis['Births'].iloc[-1] if len(births_for_analysis) > 0 else avg_births
+            st.metric(
+                label="Average Monthly Births",
+                value=f"{avg_births:,.0f}",
+                delta=f"{((latest_births/avg_births-1)*100):+.1f}%" if avg_births > 0 else "0%"
+            )
+        else:
+            st.metric(label="Average Monthly Births", value="N/A", delta="No data in filter")
+    
+    with col3:
+        if len(births_for_analysis) > 0:
+            total_births = births_for_analysis['Births'].sum()
+            st.metric(
+                label="Total Births (Filtered)",
+                value=f"{total_births:,}",
+                delta=f"{len(births_for_analysis)} months"
+            )
+        else:
+            st.metric(label="Total Births (Filtered)", value="0", delta="No data in filter")
+    
+    with col4:
+        if len(unemployment) > 0:
+            latest_unemployment = unemployment['Rate'].iloc[-1]
+            st.metric(
+                label="Target Unemployment",
+                value=f"{unemployment_rate:.1f}%",
+                delta=f"{unemployment_rate - latest_unemployment:+.1f}% vs latest"
+            )
+        else:
+            st.metric(
+                label="Target Unemployment",
+                value=f"{unemployment_rate:.1f}%",
+                delta="No historical data"
+            )
+    
+    # Time Series Analysis Section
+    st.markdown('<div class="section-header">📈 Complete Time Series Analysis</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+    
+    # Comprehensive time series chart
+    comprehensive_ts_fig = create_comprehensive_time_series(births_for_analysis)
+    if comprehensive_ts_fig:
+        st.plotly_chart(comprehensive_ts_fig, use_container_width=True)
+    else:
+        st.warning("Unable to create comprehensive time series chart")
+    
+    # Main charts with styled header
+    st.markdown('<div class="section-header">🔍 Detailed Analysis & Forecasts</div>', unsafe_allow_html=True)
+    
+    # Time series chart with predictions
+    time_series_fig = create_time_series_chart(births_for_analysis, predictions, date_range, show_predictions)
+    if time_series_fig:
+        st.plotly_chart(time_series_fig, use_container_width=True)
+    
+    # Two column layout for additional charts with proper spacing
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing before charts
+    col1, col2 = st.columns([1, 1], gap="large")
+    
+    with col1:
+        st.markdown('<div class="scotland-accent"><strong>📊 Seasonal Patterns</strong></div>', unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+        seasonal_fig = create_seasonal_heatmap(births_for_analysis)
+        if seasonal_fig:
+            st.plotly_chart(seasonal_fig, use_container_width=True)
+        else:
+            st.warning("Unable to create seasonal heatmap")
+    
+    with col2:
+        st.markdown('<div class="scotland-accent"><strong>💼 Economic Impact</strong></div>', unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+        unemployment_fig = create_unemployment_correlation(births_for_analysis, unemployment)
+        if unemployment_fig:
+            st.plotly_chart(unemployment_fig, use_container_width=True)
+        else:
+            st.warning("Unable to create unemployment correlation chart")
+    
+    # Holiday analysis
+    st.subheader("🎉 Holiday Impact Analysis")
+    holiday_fig = create_holiday_chart(holidays)
+    if holiday_fig:
+        st.plotly_chart(holiday_fig, use_container_width=True)
+    
+    # EDA Section with custom styling
+    st.markdown('<div class="section-header">📊 Exploratory Data Analysis (EDA)</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+    
+    # Birth statistics
+    birth_stats = calculate_birth_statistics(births_for_analysis)
+    if birth_stats:
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                label="Average Monthly Births",
+                value=f"{birth_stats['avg_monthly_births']:,.0f}",
+                delta=f"±{birth_stats['std_monthly_births']:,.0f}"
+            )
+        
+        with col2:
+            st.metric(
+                label="Max Monthly Births",
+                value=f"{birth_stats['max_monthly_births']:,}",
+                delta="Peak month"
+            )
+        
+        with col3:
+            st.metric(
+                label="Min Monthly Births",
+                value=f"{birth_stats['min_monthly_births']:,}",
+                delta="Lowest month"
+            )
+        
+        with col4:
+            st.metric(
+                label="Average Yearly Births",
+                value=f"{birth_stats['avg_yearly_births']:,.0f}",
+                delta=f"Peak: {birth_stats['max_year']}"
+            )
+    
+    # EDA Charts in columns with proper spacing
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+    col1, col2 = st.columns([1, 1], gap="large")
+    
+    with col1:
+        births_month_fig = create_births_by_month_chart(births_for_analysis)
+        if births_month_fig:
+            st.plotly_chart(births_month_fig, use_container_width=True)
+        else:
+            st.warning("Unable to create monthly births chart")
+    
+    with col2:
+        births_quarter_fig = create_births_by_quarter_chart(births_for_analysis)
+        if births_quarter_fig:
+            st.plotly_chart(births_quarter_fig, use_container_width=True)
+        else:
+            st.warning("Unable to create quarterly births chart")
+    
+    # Full width chart for yearly trends with spacing
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+    births_year_fig = create_births_by_year_chart(births_for_analysis)
+    if births_year_fig:
+        st.plotly_chart(births_year_fig, use_container_width=True)
+    else:
+        st.warning("Unable to create yearly births chart")
+    
+    # Predictions Analysis Section with styled header
+    st.markdown('<div class="section-header">🔮 Predictions Analysis</div>', unsafe_allow_html=True)
+    
+    if len(predictions) > 0:
+        
+        # Prediction statistics
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if 'Predicted_Births' in predictions.columns:
+                avg_prediction = predictions['Predicted_Births'].mean()
+                st.metric(
+                    label="Average Predicted Births",
+                    value=f"{avg_prediction:,.0f}",
+                    delta=f"{avg_prediction - births['Births'].mean():+.0f} vs historical"
+                )
+            else:
+                st.metric(label="Average Predicted Births", value="N/A", delta="No data")
+        
+        with col2:
+            if 'Predicted_Births' in predictions.columns and len(predictions) > 0:
+                max_prediction = predictions['Predicted_Births'].max()
+                max_idx = predictions['Predicted_Births'].idxmax()
+                max_date = predictions.loc[max_idx, 'Date']
+                st.metric(
+                    label="Peak Predicted Month",
+                    value=f"{max_prediction:,}",
+                    delta=f"{max_date.strftime('%Y-%m')}"
+                )
+            else:
+                st.metric(label="Peak Predicted Month", value="N/A", delta="No data")
+        
+        with col3:
+            if 'Predicted_Births' in predictions.columns and len(predictions) > 0:
+                min_prediction = predictions['Predicted_Births'].min()
+                min_idx = predictions['Predicted_Births'].idxmin()
+                min_date = predictions.loc[min_idx, 'Date']
+                st.metric(
+                    label="Lowest Predicted Month",
+                    value=f"{min_prediction:,}",
+                    delta=f"{min_date.strftime('%Y-%m')}"
+                )
+            else:
+                st.metric(label="Lowest Predicted Month", value="N/A", delta="No data")
+    else:
+        st.info("No predictions available. Train a model first to see prediction analysis.")
+    
+    # Data tables section with styled header
+    st.markdown('<div class="section-header">📋 Raw Data Explorer</div>', unsafe_allow_html=True)
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Births", "💼 Unemployment", "🎉 Holidays", "🔮 Predictions"])
     
     with tab1:
-        st.subheader("Scotland Birth Rate Trends and Forecasts")
-        if len(date_range) == 2:
-            fig = create_time_series_chart(births, predictions, date_range, show_predictions)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(births_for_analysis, use_container_width=True)
+        if filter_info:
+            st.caption(f"📈 Filtered records: {len(births_for_analysis)} of {len(births)} ({' | '.join(filter_info)})")
         else:
-            st.warning("Please select a valid date range.")
-        
-        # Display key statistics
-        stats = calculate_birth_statistics(births_for_analysis)
-        st.markdown("<div class='section-header'>Key Performance Indicators (KPIs)</div>", unsafe_allow_html=True)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        if stats:
-            col1.metric("Total Births (in filtered data)", f"{stats.get('total_births', 0):,}")
-            col2.metric("Average Monthly Births", f"{stats.get('avg_monthly_births', 0):,.0f}")
-            col3.metric("Max Monthly Births", f"{stats.get('max_monthly_births', 0):,}")
-            col4.metric("Min Monthly Births", f"{stats.get('min_monthly_births', 0):,}")
-
+            st.caption(f"📈 Total records: {len(births_for_analysis)}")
+    
     with tab2:
-        st.subheader("Detailed Trend Analysis")
-        
-        # Row 1: Seasonal Heatmap and Unemployment Correlation
-        col_seasonal, col_unemployment = st.columns(2)
-        with col_seasonal:
-            fig_heatmap = create_seasonal_heatmap(births_for_analysis)
-            if fig_heatmap:
-                st.plotly_chart(fig_heatmap, use_container_width=True)
-        with col_unemployment:
-            fig_corr = create_unemployment_correlation(births_for_analysis, unemployment)
-            if fig_corr:
-                st.plotly_chart(fig_corr, use_container_width=True)
-
-        # Row 2: Monthly and Quarterly Averages
-        col_monthly, col_quarterly = st.columns(2)
-        with col_monthly:
-            fig_month = create_births_by_month_chart(births_for_analysis)
-            if fig_month:
-                st.plotly_chart(fig_month, use_container_width=True)
-        with col_quarterly:
-            fig_quarter = create_births_by_quarter_chart(births_for_analysis)
-            if fig_quarter:
-                st.plotly_chart(fig_quarter, use_container_width=True)
-                
-        # Row 3: Long-term yearly trends
-        fig_yearly = create_births_by_year_chart(births)
-        if fig_yearly:
-            st.plotly_chart(fig_yearly, use_container_width=True)
-
-    with tab3:
-        st.subheader("Model and Data Management")
-        
-        # Display model retraining status
-        if ModelRetrainingPipeline:
-            st.markdown("### Model Retraining Pipeline Status")
-            retraining_status = get_retraining_status()
-            st.json(retraining_status)
-            if st.button("Manually Run Retraining Pipeline"):
-                with st.spinner("Starting retraining pipeline..."):
-                    result = run_retraining_pipeline(force=True)
-                    if 'error' in result:
-                        st.error(f"Failed to start pipeline: {result['error']}")
-                    else:
-                        st.success("Retraining pipeline started successfully!")
-                        st.json(result)
+        if len(unemployment) > 0:
+            st.dataframe(unemployment, use_container_width=True)
+            st.caption(f"📊 Total records: {len(unemployment)}")
         else:
-            st.warning("⚠️ Model retraining module is not available.")
+            st.info("No unemployment data available")
+    
+    with tab3:
+        if len(holidays) > 0:
+            st.dataframe(holidays, use_container_width=True)
+            st.caption(f"🎉 Total records: {len(holidays)}")
+        else:
+            st.info("No holiday data available")
+    
+    with tab4:
+        if len(predictions) > 0:
+            st.dataframe(predictions, use_container_width=True)
+            st.caption(f"🔮 Total predictions: {len(predictions)}")
+        else:
+            st.info("No predictions available. Train a model first.")
+    
+    # Download section with styled header
+    st.markdown('<div class="section-header">💾 Data Export</div>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        csv = births_for_analysis.to_csv(index=False)
+        filename_suffix = "_filtered" if filter_info else ""
+        st.download_button(
+            label="📊 Download Births Data",
+            data=csv,
+            file_name=f"scotland_births{filename_suffix}_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    
+    with col2:
+        if len(unemployment) > 0:
+            unemp_csv = unemployment.to_csv(index=False)
+            st.download_button(
+                label="💼 Download Unemployment Data",
+                data=unemp_csv,
+                file_name=f"unemployment_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+    
+    with col3:
+        if len(holidays) > 0:
+            holiday_csv = holidays.to_csv(index=False)
+            st.download_button(
+                label="🎉 Download Holiday Data",
+                data=holiday_csv,
+                file_name=f"holidays_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+    
+    with col4:
+        if len(predictions) > 0:
+            pred_csv = predictions.to_csv(index=False)
+            st.download_button(
+                label="🔮 Download Predictions",
+                data=pred_csv,
+                file_name=f"birth_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+    
+    # Automated Retraining Section
+    st.markdown('<div class="section-header">🔄 Automated Model Retraining</div>', unsafe_allow_html=True)
+    
+    try:
+        # Get current retraining status
+        status = get_retraining_status()
         
-        st.markdown("### Raw Data View")
-        st.markdown("This view provides a direct look at the underlying datasets.")
+        # Display retraining status overview
+        col1, col2, col3, col4 = st.columns(4)
         
-        st.markdown("#### Raw Births Data")
-        st.dataframe(births, use_container_width=True)
-
-        st.markdown("#### Raw Unemployment Data")
-        st.dataframe(unemployment, use_container_width=True)
+        with col1:
+            if status.get('current_model_age_days') is not None:
+                age_days = status['current_model_age_days']
+                st.metric(
+                    label="Model Age",
+                    value=f"{age_days} days",
+                    delta=f"{'Fresh' if age_days <= 7 else 'Aging' if age_days <= 30 else 'Outdated'}"
+                )
+            else:
+                st.metric(label="Model Age", value="Unknown", delta="No training history")
         
-        st.markdown("#### Raw Holiday Data")
-        st.dataframe(holidays, use_container_width=True)
-
+        with col2:
+            total_retrainings = status.get('total_retrainings', 0)
+            st.metric(
+                label="Total Retrainings",
+                value=str(total_retrainings),
+                delta=f"Automatic pipeline"
+            )
+        
+        with col3:
+            if status.get('next_scheduled_check'):
+                next_check = datetime.fromisoformat(status['next_scheduled_check'])
+                days_until = (next_check - datetime.now()).days
+                st.metric(
+                    label="Next Check",
+                    value=f"{max(0, days_until)} days",
+                    delta=next_check.strftime("%Y-%m-%d")
+                )
+            else:
+                st.metric(label="Next Check", value="Not scheduled", delta="Configure pipeline")
+        
+        with col4:
+            # Manual controls
+            col_run, col_status = st.columns(2)
+            with col_run:
+                if st.button("🔄 Run Now", type="primary", use_container_width=True):
+                    with st.spinner("Running retraining pipeline..."):
+                        try:
+                            result = run_retraining_pipeline(force=True)
+                            if result.get('retraining_performed'):
+                                st.success("Model retrained successfully!")
+                                st.rerun()
+                            else:
+                                st.info("No retraining needed")
+                        except Exception as e:
+                            st.error(f"Retraining failed: {str(e)}")
+            
+            with col_status:
+                if st.button("📊 View Status", use_container_width=True):
+                    st.session_state.show_retraining_details = not st.session_state.get('show_retraining_details', False)
+        
+        # Detailed status information
+        if st.session_state.get('show_retraining_details', False):
+            st.markdown("#### 📋 Detailed Retraining Status")
+            
+            # Load pipeline configuration
+            try:
+                pipeline = ModelRetrainingPipeline()
+                config = pipeline.config
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**🔧 Configuration**")
+                    st.json({
+                        "Retraining Frequency": f"{config.get('retraining_frequency_days', 30)} days",
+                        "Performance Threshold": f"{config.get('performance_threshold', 0.15):.1%}",
+                        "Min Improvement": f"{config.get('min_improvement_threshold', 0.05):.1%}",
+                        "Auto Deploy": config.get('auto_deploy', True)
+                    })
+                
+                with col2:
+                    st.markdown("**📈 Last Retraining**")
+                    if status.get('last_retraining'):
+                        last_training = status['last_retraining']
+                        st.json({
+                            "Timestamp": last_training.get('timestamp', 'Unknown'),
+                            "Duration": f"{last_training.get('duration_seconds', 0):.2f}s",
+                            "Status": last_training.get('deployment_status', 'Unknown'),
+                            "Success": last_training.get('success', False)
+                        })
+                    else:
+                        st.info("No retraining history available")
+                
+                # Retraining history
+                if status.get('total_retrainings', 0) > 0:
+                    st.markdown("**📚 Retraining History**")
+                    history = pipeline._load_history()
+                    
+                    # Create history DataFrame
+                    history_data = []
+                    for entry in history[-10:]:  # Show last 10 entries
+                        history_data.append({
+                            'Date': entry.get('timestamp', 'Unknown')[:10],
+                            'Success': '✅' if entry.get('success') else '❌',
+                            'Duration': f"{entry.get('duration_seconds', 0):.1f}s",
+                            'Status': entry.get('deployment_status', 'Unknown'),
+                            'Trigger': ', '.join(entry.get('trigger_reasons', [])[:2])  # Show first 2 reasons
+                        })
+                    
+                    if history_data:
+                        history_df = pd.DataFrame(history_data)
+                        st.dataframe(history_df, use_container_width=True)
+                
+                # Current pipeline check
+                st.markdown("**🔍 Current Status Check**")
+                check_results = pipeline.should_retrain()
+                
+                if check_results['should_retrain']:
+                    st.warning(f"⚠️ Retraining recommended: {', '.join(check_results['reasons'])}")
+                else:
+                    st.success("✅ Model is up to date")
+                
+                # Data freshness
+                freshness = check_results.get('data_freshness', {})
+                if freshness.get('has_fresh_data'):
+                    st.info(f"📊 Data: {freshness.get('record_count', 0)} records, latest: {freshness.get('latest_date', 'Unknown')}")
+                else:
+                    st.warning("📊 Data may be outdated")
+                
+            except Exception as e:
+                st.error(f"Error loading pipeline details: {str(e)}")
+    
+    except Exception as e:
+        st.error(f"Error loading retraining status: {str(e)}")
+        st.info("The automated retraining pipeline will be available once the system is properly configured.")
+    
+    # Styled Footer
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #2c3e50, #34495e);
+        color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-top: 3rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    ">
+        <h3 style="margin-bottom: 1rem; color: #ecf0f1;">🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scotland Birth Rate Forecasting System</h3>
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap; margin-bottom: 1rem;">
+            <div style="margin: 0.5rem;">
+                <strong>📊 Data Sources</strong><br>
+                <small>NRS Scotland • World Bank API • UK Government</small>
+            </div>
+            <div style="margin: 0.5rem;">
+                <strong>🤖 Machine Learning</strong><br>
+                <small>XGBoost Regressor with Time-Series Validation</small>
+            </div>
+            <div style="margin: 0.5rem;">
+                <strong>🎯 Features</strong><br>
+                <small>Real-time Analysis • Scenario Simulation • Interactive Forecasting</small>
+            </div>
+        </div>
+        <hr style="border: 1px solid #7f8c8d; margin: 1rem 0;">
+        <small style="color: #bdc3c7;">
+            Built with Streamlit • Powered by Authentic Government Data • 
+            Designed for Demographic Research & Policy Planning
+        </small>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
