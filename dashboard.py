@@ -675,14 +675,15 @@ def main():
         max_year = births['Date'].dt.year.max()
         st.sidebar.info(f"Current data: {min_year}-{max_year} ({len(births)} records)")
     if st.sidebar.button("🔄 Fetch Latest Data", help="Update dataset with 2024-2025 data"):
-        with st.spinner("Fetching latest data..."):
-            success, record_count = fetch_latest_data()
-            if success:
-                st.sidebar.success(f"✅ Updated! Added {record_count} records")
-                st.sidebar.info("Data now includes 2024-2025 estimates")
-                st.rerun()
-            else:
-                st.sidebar.error("❌ Failed to fetch latest data")
+    with st.spinner("Fetching latest data..."):
+        success, record_count = fetch_latest_data()
+        if success:
+            st.cache_data.clear()  # <-- Add this line!
+            st.sidebar.success(f"✅ Updated! Added {record_count} records")
+            st.sidebar.info("Data now includes 2024-2025 estimates")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Failed to fetch latest data")
     if st.sidebar.button("🚀 Train Model with New Data", help="Train model using the updated dataset"):
         with st.spinner("Training model..."):
           with st.sidebar:
