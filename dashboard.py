@@ -674,22 +674,23 @@ def main():
         min_year = births['Date'].dt.year.min()
         max_year = births['Date'].dt.year.max()
         st.sidebar.info(f"Current data: {min_year}-{max_year} ({len(births)} records)")
+    # --- EDITED BLOCK: Clear cache after fetching new data ---
     if st.sidebar.button("🔄 Fetch Latest Data", help="Update dataset with 2024-2025 data"):
-    with st.spinner("Fetching latest data..."):
-        success, record_count = fetch_latest_data()
-        if success:
-            st.cache_data.clear()  # <-- Add this line to clear the cache!
-            st.sidebar.success(f"✅ Updated! Added {record_count} records")
-            st.sidebar.info("Data now includes 2024-2025 estimates")
-            st.rerun()
-        else:
-            st.sidebar.error("❌ Failed to fetch latest data")
+        with st.spinner("Fetching latest data..."):
+            success, record_count = fetch_latest_data()
+            if success:
+                st.cache_data.clear()  # <-- This line ensures new data is loaded!
+                st.sidebar.success(f"✅ Updated! Added {record_count} records")
+                st.sidebar.info("Data now includes 2024-2025 estimates")
+                st.rerun()
+            else:
+                st.sidebar.error("❌ Failed to fetch latest data")
     if st.sidebar.button("🚀 Train Model with New Data", help="Train model using the updated dataset"):
         with st.spinner("Training model..."):
-          with st.sidebar:
-           st.write("Training model...")
-        import subprocess
-        try:
+            with st.sidebar:
+                st.write("Training model...")
+            import subprocess
+            try:
                 result = subprocess.run(['python', 'train_model.py'],
                                        capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
@@ -697,7 +698,7 @@ def main():
                     st.rerun()
                 else:
                     st.sidebar.error(f"❌ Training failed: {result.stderr}")
-        except Exception as e:
+            except Exception as e:
                 st.sidebar.error(f"❌ Training error: {e}")
     births_for_analysis, filter_info = apply_scenario_filters(
         births, unemployment, unemployment_rate, use_unemployment_filter,
