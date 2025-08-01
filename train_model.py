@@ -5,11 +5,16 @@ from xgboost import XGBRegressor
 import joblib
 import warnings
 from datetime import datetime
+import shap
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore')
 
 def prepare_data():
-    """Load and feature-engineer the data for time-series split"""
+    """Load and feature-engineer the data for time-series split.
+
+    Side effect: Saves prepared features to 'features.csv' for inspection.
+    """
     print("📊 Loading and preparing data...")
     try:
         births = pd.read_csv('births.csv', parse_dates=['Date'])
@@ -72,8 +77,8 @@ def prepare_data():
 
     print(f"✅ Prepared {len(X)} samples with {len(features)} features")
     print(f"   Features: {', '.join(features)}")
+    X.to_csv('features.csv', index=False)
     return births, X, y
-
 def train_model():
     """Train XGBoost model with time-series split and report performance"""
     data = prepare_data()
@@ -97,11 +102,11 @@ def train_model():
 
     # Configure XGBoost with regularization to prevent overfitting
     model = XGBRegressor(
-        n_estimators=50,        # Fewer trees to prevent overfitting
-        max_depth=3,            # Shallow trees
-        learning_rate=0.05,     # Lower learning rate
-        reg_alpha=0.1,          # L1 regularization
-        reg_lambda=1.0,         # L2 regularization
+        n_estimators=50,       # Fewer trees to prevent overfitting
+        max_depth=3,           # Shallow trees
+        learning_rate=0.05,    # Lower learning rate
+        reg_alpha=0.1,         # L1 regularization
+        reg_lambda=1.0,        # L2 regularization
         random_state=42,
         verbosity=0
     )
@@ -122,12 +127,33 @@ def train_model():
     print(f"   Test MAE: {test_mae:.2f}")
     print(f"   Overfitting ratio: {test_mae/train_mae:.2f}")
 
-    # Show feature importance
+    # Show built-in feature importance
     feature_names = X.columns
     importance = model.feature_importances_
-    print(f"\n🎯 Feature Importance:")
+    print(f"\n🎯 Built-in Feature Importance:")
     for name, imp in sorted(zip(feature_names, importance), key=lambda x: x[1], reverse=True):
         print(f"   {name}: {imp:.3f}")
+
+    try:
+        print("\nExplaining model with SHAP...")
+        # Create a TreeExplainer for the XGBoost model
+        explainer = shap.TreeExplainer(model)
+        
+        # Calculate SHAP values for the test set
+        shap_values = explainer.shap_values(X_test)
+        
+        # Generate the summary plot
+        print("Generating SHAP summary plot...")
+        # The show=False argument prevents the plot from displaying interactively
+        shap.summary_plot(shap_values, X_test, show=False)
+        
+        # Save the plot to a file
+        plt.savefig('shap_summary_plot.png', dpi=300, bbox_inches='tight')
+        plt.close() # Close the plot figure to free up memory
+        print("✅ SHAP summary plot saved as 'shap_summary_plot.png'")
+        
+    except Exception as e:
+        print(f"❌ Failed to generate SHAP plot: {e}")
 
     # Show sample predictions
     print(f"\n🔍 Sample Test Predictions:")
@@ -153,7 +179,6 @@ def generate_predictions(model, births, feature_columns):
     
     # Get the last known values for feature engineering
     last_date = births['Date'].max()
-    last_year = births['Year'].max()
     last_unemployment = births['Unemployment_Rate'].iloc[-1]
     
     # Create future dates (next 12 months)
