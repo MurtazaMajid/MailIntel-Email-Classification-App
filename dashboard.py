@@ -9,6 +9,17 @@ from datetime import datetime, timedelta
 import os
 import json
 
+if st.sidebar.button("🔄 Fetch Latest Data", help="Update dataset with 2024-2025 data"):
+    with st.spinner("Fetching latest data..."):
+        success, record_count = fetch_latest_data()
+        if success:
+            st.cache_data.clear()  # <-- Add this line to clear cached data
+            st.sidebar.success(f"✅ Updated! Added {record_count} records")
+            st.sidebar.info("Data now includes 2024-2025 estimates")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Failed to fetch latest data")
+
 # --- SHAP import for feature importance ---
 try:
     import shap
