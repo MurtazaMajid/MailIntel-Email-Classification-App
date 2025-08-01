@@ -1,0 +1,18 @@
+{
+  "retraining_frequency_days": 30,
+  "min_data_age_days": 7,
+  "performance_threshold": 0.15,
+  "min_improvement_threshold": 0.05,
+  "data_validation": {
+    "min_records": 100,
+    "max_missing_rate": 0.1,
+    "seasonal_pattern_check": true
+  },
+  "model_validation": {
+    "cross_validation_folds": 5,
+    "test_size": 0.2,
+    "min_r2_score": 0.3
+  },
+  "auto_deploy": true,
+  "backup_previous_model": true
+}
