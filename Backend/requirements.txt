@@ -16,9 +16,8 @@ scikit-learn>=1.4.0
 joblib>=1.4.0
 numpy>=1.26.0
 
-# TensorFlow — use slim CPU-only build to keep deploy size manageable on Render
-# If you have a GPU instance, replace with: tensorflow>=2.16.0
-tensorflow-cpu>=2.16.0
+# TensorFlow — pinned to last version supporting Python 3.11
+tensorflow-cpu==2.16.2
 
 # Utilities
 python-dotenv>=1.0.0
