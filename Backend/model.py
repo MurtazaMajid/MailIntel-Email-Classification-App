@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 
 MODEL_DIR   = os.getenv("MODEL_DIR", "model")
-LSTM_MAXLEN = int(os.getenv("LSTM_MAX_LEN", "200"))   # maxlen used in pad_sequences
+LSTM_MAXLEN = int(os.getenv("LSTM_MAX_LEN", "100"))   # maxlen used in pad_sequences
 VOCAB_SIZE  = 5000                                     # max_features / num_words
 
 # Exact class ordering as trained (softmax index → label)
