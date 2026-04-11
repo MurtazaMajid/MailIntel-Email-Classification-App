@@ -23,9 +23,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.gmail import fetch_emails
-from app.model import classify_batch, AVAILABLE_MODELS, MODEL_DISPLAY_NAMES, MODEL_DESCRIPTIONS
-from app.db import (
+from gmail import fetch_emails
+from model import classify_batch, AVAILABLE_MODELS, MODEL_DISPLAY_NAMES, MODEL_DESCRIPTIONS
+from db import (
     upsert_batch,
     get_all_emails,
     get_email_by_id,
@@ -33,7 +33,7 @@ from app.db import (
     get_unprocessed_ids,
     get_stats,
 )
-from app.utils import setup_logging, format_result
+from utils import setup_logging, format_result
 
 setup_logging()
 logger = logging.getLogger(__name__)
