@@ -16,6 +16,7 @@ Run locally:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -43,10 +44,18 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow Vercel frontend to call this API
+# ─────────────────────────────────────────────
+# CORS — reads ALLOWED_ORIGINS from env so you
+# can lock it down to your Vercel URL in prod:
+#   ALLOWED_ORIGINS=https://your-app.vercel.app
+# Falls back to * for local dev only.
+# ─────────────────────────────────────────────
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten to your Vercel domain in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,8 +69,8 @@ app.add_middleware(
 class RunRequest(BaseModel):
     model: str = "lstm"          # "svm" | "naive_bayes" | "lstm"
     max_emails: int = 50
-    query: str = ""             # Gmail search query (optional)
-    skip_existing: bool = True  # skip emails already in DB
+    query: str = ""              # Gmail search query (optional)
+    skip_existing: bool = True   # skip emails already in DB
 
 
 class RunResponse(BaseModel):
@@ -75,13 +84,13 @@ class RunResponse(BaseModel):
 class EmailRecord(BaseModel):
     id: str
     sender: str
-    subject: Optional[str]
-    snippet: Optional[str]
-    timestamp: Optional[str]
-    predicted_class: Optional[str]
-    probability: Optional[float]
-    model_used: Optional[str]
-    processed_at: Optional[str]
+    subject: Optional[str] = None
+    snippet: Optional[str] = None
+    timestamp: Optional[str] = None
+    predicted_class: Optional[str] = None
+    probability: Optional[float] = None
+    model_used: Optional[str] = None
+    processed_at: Optional[str] = None
 
 
 # ─────────────────────────────────────────────
@@ -118,7 +127,7 @@ def list_emails(
 ):
     """
     Return classified emails from Supabase.
-    Filter by predicted_class if provided (e.g. ?predicted_class=spam).
+    Filter by ?predicted_class=Spam|Important|Work|Promotion|Personal
     """
     if predicted_class:
         return get_emails_by_class(predicted_class, limit=limit)
@@ -138,7 +147,7 @@ def run_pipeline(body: RunRequest):
     """
     Full pipeline:
       1. Validate model name
-      2. Fetch emails from Gmail (via token.pkl)
+      2. Fetch emails from Gmail (via models/tokens.pkl)
       3. Skip already-processed emails (optional)
       4. Run classification with chosen model
       5. Store results in Supabase
