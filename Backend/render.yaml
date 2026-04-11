@@ -16,7 +16,7 @@ services:
         value: models
       - key: LSTM_MAX_LEN
         value: "100"
-      - key: PYTHON_VERSION
-        value: "3.11.0"
       - key: ALLOWED_ORIGINS
         value: "*"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
