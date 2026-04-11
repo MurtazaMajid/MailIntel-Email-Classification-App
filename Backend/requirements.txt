@@ -12,10 +12,13 @@ google-auth-oauthlib>=1.2.0
 supabase>=2.4.0
 
 # ML — pre-trained models
-scikit-learn>=1.4.0       # SVM + Naive Bayes (.joblib)
-joblib>=1.4.0             # loading .joblib files
+scikit-learn>=1.4.0
+joblib>=1.4.0
 numpy>=1.26.0
-tensorflow>=2.16.0        # LSTM (.keras)
+
+# TensorFlow — use slim CPU-only build to keep deploy size manageable on Render
+# If you have a GPU instance, replace with: tensorflow>=2.16.0
+tensorflow-cpu>=2.16.0
 
 # Utilities
 python-dotenv>=1.0.0
