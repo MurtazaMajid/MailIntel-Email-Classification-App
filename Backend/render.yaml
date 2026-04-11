@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: gmail-classifier-api
+    runtime: python
+    plan: standard          # use 'starter' for free tier (no persistent disk)
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SUPABASE_URL
+        sync: false         # set manually in Render dashboard
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GMAIL_TOKEN_PATH
+        value: models/tokens.pkl
+      - key: MODEL_DIR
+        value: models
+      - key: LSTM_MAX_LEN
+        value: "200"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
