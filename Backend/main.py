@@ -109,7 +109,7 @@ def list_models():
         "models": AVAILABLE_MODELS,
         "display_names": MODEL_DISPLAY_NAMES,
         "descriptions": MODEL_DESCRIPTIONS,
-        "default": "lstm",
+        "default": "svm",
     }
 
 
