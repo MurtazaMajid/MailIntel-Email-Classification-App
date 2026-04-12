@@ -15,12 +15,9 @@ Models
 
   "lstm"        → lstm_model.keras        (LSTM, 81.0% accuracy — best model)
                   uses tokenizer.pkl      (Keras Tokenizer, vocab=5000, oov='<OOV>')
-                  sequence padded to maxlen=200, padding='post', truncating='post'
+                  sequence padded to maxlen=100, padding='post', truncating='post'
 
-Input to all models: combined_text = subject_tokens + snippet_tokens + body_tokens
-                     (same field used during training)
-
-Label priority during training: Spam > Important > Work > Promotion > Personal
+Default model: svm (fastest, no TensorFlow overhead, good accuracy)
 """
 
 from __future__ import annotations
@@ -38,24 +35,22 @@ logger = logging.getLogger(__name__)
 # Config — must match training settings exactly
 # ─────────────────────────────────────────────
 
-MODEL_DIR   = os.getenv("MODEL_DIR", "model")
-LSTM_MAXLEN = int(os.getenv("LSTM_MAX_LEN", "100"))   # maxlen used in pad_sequences
-VOCAB_SIZE  = 5000                                     # max_features / num_words
+MODEL_DIR   = os.getenv("MODEL_DIR", "Models")
+LSTM_MAXLEN = int(os.getenv("LSTM_MAX_LEN", "100"))
+VOCAB_SIZE  = 5000
 
-# Exact class ordering as trained (softmax index → label)
-# Priority during labelling: Spam > Important > Work > Promotion > Personal
 CLASSES = ["Spam", "Important", "Work", "Promotion", "Personal"]
 
 AVAILABLE_MODELS = ["svm", "naive_bayes", "lstm"]
 
 MODEL_DISPLAY_NAMES = {
-    "svm":         "SVM — Linear Kernel (79.5% accuracy)",
+    "svm":         "SVM — Linear Kernel (79.5% accuracy) ★ Default",
     "naive_bayes": "Naive Bayes (72.6% accuracy)",
-    "lstm":        "LSTM — Deep Learning (81.0% accuracy) ★ Best",
+    "lstm":        "LSTM — Deep Learning (81.0% accuracy) — Best",
 }
 
 MODEL_DESCRIPTIONS = {
-    "svm":         "Support Vector Classifier with TF-IDF features. Best classical model.",
+    "svm":         "Support Vector Classifier with TF-IDF features. Fast and reliable.",
     "naive_bayes": "Multinomial Naive Bayes with TF-IDF features. Fastest, good baseline.",
     "lstm":        "LSTM neural network with learned embeddings. Highest accuracy overall.",
 }
@@ -71,9 +66,9 @@ PATHS = {
     "svm":         _path("svm_model.joblib"),
     "naive_bayes": _path("naive_bayes_model.joblib"),
     "lstm":        _path("lstm_model.keras"),
-    "vectorizer":  _path("vectorizer.pkl"),       # shared by SVM + Naive Bayes
-    "tokenizer":   _path("tokenizer.pkl"),        # used by LSTM only
-    "token_auth":  _path("tokens.pkl"),           # Gmail OAuth token (used by gmail.py)
+    "vectorizer":  _path("vectorizer.pkl"),
+    "tokenizer":   _path("tokenizer.pkl"),
+    "token_auth":  _path("token.pkl"),
 }
 
 
@@ -83,19 +78,18 @@ PATHS = {
 
 @dataclass
 class ModelResult:
-    predicted_class: str    # "Spam" | "Important" | "Work" | "Promotion" | "Personal"
-    probability: float      # confidence score 0.0–1.0
-    model_used: str         # "svm" | "naive_bayes" | "lstm"
-    all_scores: dict        # {class: score} for all 5 classes
+    predicted_class: str
+    probability: float
+    model_used: str
+    all_scores: dict
 
 
 # ─────────────────────────────────────────────
-# Lazy model loading (cached — loaded once per process)
+# Lazy model loading
 # ─────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def _load_vectorizer():
-    """TF-IDF vectorizer shared by SVM and Naive Bayes."""
     logger.info("Loading vectorizer from %s", PATHS["vectorizer"])
     with open(PATHS["vectorizer"], "rb") as f:
         return pickle.load(f)
@@ -103,7 +97,6 @@ def _load_vectorizer():
 
 @lru_cache(maxsize=1)
 def _load_tokenizer():
-    """Keras Tokenizer used by LSTM (vocab=5000, oov_token='<OOV>')."""
     logger.info("Loading tokenizer from %s", PATHS["tokenizer"])
     with open(PATHS["tokenizer"], "rb") as f:
         return pickle.load(f)
@@ -111,35 +104,30 @@ def _load_tokenizer():
 
 @lru_cache(maxsize=1)
 def _load_svm():
-    import joblib  # type: ignore
+    import joblib
     logger.info("Loading SVM from %s", PATHS["svm"])
     return joblib.load(PATHS["svm"])
 
 
 @lru_cache(maxsize=1)
 def _load_naive_bayes():
-    import joblib  # type: ignore
+    import joblib
     logger.info("Loading Naive Bayes from %s", PATHS["naive_bayes"])
     return joblib.load(PATHS["naive_bayes"])
 
 
 @lru_cache(maxsize=1)
 def _load_lstm():
-    from tensorflow import keras  # type: ignore
+    from tensorflow import keras
     logger.info("Loading LSTM from %s", PATHS["lstm"])
     return keras.models.load_model(PATHS["lstm"])
 
 
 # ─────────────────────────────────────────────
-# Text prep — must mirror training pipeline
+# Text prep
 # ─────────────────────────────────────────────
 
 def _get_combined_text(email: dict) -> str:
-    """
-    Reproduce the combined_text field used during training.
-    Training used: subject_tokens + snippet_tokens + body_tokens joined as a string.
-    At inference time we work from raw fields since we don't have pre-tokenised columns.
-    """
     subject = email.get("subject") or ""
     snippet = email.get("snippet") or ""
     body    = email.get("body")    or ""
@@ -147,7 +135,6 @@ def _get_combined_text(email: dict) -> str:
 
 
 def _scores_dict(probas: np.ndarray, classes: list[str]) -> dict:
-    """Build {class: probability} dict from a probability array."""
     return {cls: round(float(p), 4) for cls, p in zip(classes, probas)}
 
 
@@ -160,20 +147,16 @@ def _run_svm(email: dict) -> ModelResult:
     vectorizer = _load_vectorizer()
     model      = _load_svm()
 
-    features = vectorizer.transform([text])
-    pred_idx = model.predict(features)[0]
-
-    # sklearn encodes labels — get the actual class name
-    classes = list(model.classes_) if hasattr(model, "classes_") else CLASSES
-    predicted_class = str(pred_idx)  # already the label string if trained with string labels
+    features        = vectorizer.transform([text])
+    predicted_class = str(model.predict(features)[0])
+    classes         = list(model.classes_) if hasattr(model, "classes_") else CLASSES
 
     if hasattr(model, "predict_proba"):
-        probas = model.predict_proba(features)[0]
-        scores = _scores_dict(probas, classes)
+        probas      = model.predict_proba(features)[0]
+        scores      = _scores_dict(probas, classes)
         probability = round(float(np.max(probas)), 4)
     else:
-        # SVC without probability=True — no soft scores available
-        scores = {c: (1.0 if c == predicted_class else 0.0) for c in classes}
+        scores      = {c: (1.0 if c == predicted_class else 0.0) for c in classes}
         probability = 1.0
 
     return ModelResult(
@@ -204,14 +187,12 @@ def _run_naive_bayes(email: dict) -> ModelResult:
 
 
 def _run_lstm(email: dict) -> ModelResult:
-    from tensorflow.keras.preprocessing.sequence import pad_sequences  # type: ignore
+    from tensorflow.keras.preprocessing.sequence import pad_sequences
 
     text      = _get_combined_text(email)
     tokenizer = _load_tokenizer()
     model     = _load_lstm()
 
-    # Reproduce training preprocessing:
-    # texts_to_sequences → pad_sequences(maxlen=200, padding='post', truncating='post')
     sequence = tokenizer.texts_to_sequences([text])
     padded   = pad_sequences(
         sequence,
@@ -220,10 +201,7 @@ def _run_lstm(email: dict) -> ModelResult:
         truncating="post",
     )
 
-    # Model output: softmax over 5 classes
-    # Class order matches label encoding used at training time
-    raw = model.predict(padded, verbose=0)[0]   # shape (5,)
-
+    raw             = model.predict(padded, verbose=0)[0]
     predicted_idx   = int(np.argmax(raw))
     predicted_class = CLASSES[predicted_idx]
     probability     = round(float(np.max(raw)), 4)
@@ -238,19 +216,13 @@ def _run_lstm(email: dict) -> ModelResult:
 
 
 # ─────────────────────────────────────────────
-# Public interface
+# Public interface — default model is SVM
 # ─────────────────────────────────────────────
 
-def classify_email(email: dict, model: str = "lstm") -> ModelResult:
+def classify_email(email: dict, model: str = "svm") -> ModelResult:
     """
     Classify a single email using the specified pre-trained model.
-
-    Args:
-        email: Dict with keys: id, sender, subject, snippet, body.
-        model: "svm" | "naive_bayes" | "lstm"  (default: lstm — best accuracy)
-
-    Returns:
-        ModelResult(predicted_class, probability, model_used, all_scores)
+    Default: svm — fast, no TensorFlow overhead, solid accuracy.
     """
     if model not in AVAILABLE_MODELS:
         raise ValueError(f"Unknown model '{model}'. Choose from: {AVAILABLE_MODELS}")
@@ -265,11 +237,8 @@ def classify_email(email: dict, model: str = "lstm") -> ModelResult:
         return _run_lstm(email)
 
 
-def classify_batch(emails: list[dict], model: str = "lstm") -> list[ModelResult]:
-    """
-    Classify a list of emails. Returns results in the same order.
-    Individual errors are caught and logged — failed emails get 'unknown' class.
-    """
+def classify_batch(emails: list[dict], model: str = "svm") -> list[ModelResult]:
+    """Classify a list of emails. Default model: svm."""
     results: list[ModelResult] = []
     for email in emails:
         try:
