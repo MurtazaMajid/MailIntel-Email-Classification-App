@@ -13,9 +13,9 @@ services:
       - key: SUPABASE_SERVICE_KEY
         value: sb_publishable_GuFWfqnOqncOaU5iINmtjA_wa_f8SRw
       - key: GMAIL_TOKEN_PATH
-        value: models/tokens.pkl
+        value: Models/token.pkl
       - key: MODEL_DIR
-        value: models
+        value: Models
       - key: LSTM_MAX_LEN
         value: "100"
       - key: ALLOWED_ORIGINS
