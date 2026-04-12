@@ -67,7 +67,7 @@ app.add_middleware(
 # ─────────────────────────────────────────────
 
 class RunRequest(BaseModel):
-    model: str = "lstm"          # "svm" | "naive_bayes" | "lstm"
+    model: str = "svm"          # "svm" | "naive_bayes" | "lstm"
     max_emails: int = 50
     query: str = ""              # Gmail search query (optional)
     skip_existing: bool = True   # skip emails already in DB
