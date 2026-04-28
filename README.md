@@ -29,7 +29,7 @@
 </div>
 
 ---
-![Mailntel](Images/app_screenshot.png)
+![Maillntel](Images/app_screenshot.png)
 
 
 ---
