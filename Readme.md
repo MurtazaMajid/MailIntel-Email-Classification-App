@@ -27,6 +27,10 @@
 ![Best Accuracy](https://img.shields.io/badge/Best%20Accuracy-81%25%20LSTM-orange?style=flat-square)
 
 </div>
+---
+
+![Mailntel](Images/app_screenshot.png)
+
 
 ---
 
