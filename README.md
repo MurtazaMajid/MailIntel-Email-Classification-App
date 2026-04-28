@@ -16,7 +16,7 @@
 
 <br/>
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YOUR_USERNAME/YOUR_REPO/blob/main/emails_classification.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MurtazaMajid/MailIntel-Email-Classification-App/blob/main/Notebook/emails_classification.ipynb)
 &nbsp;
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen?style=flat-square)
 &nbsp;
